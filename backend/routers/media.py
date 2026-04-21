@@ -56,13 +56,14 @@ async def upload_images(user: UserDep, db: SessionDep, files: list[UploadFile]):
             )
 
         try:
-            file_content = io.BytesIO(await file.read())
+            cont = await file.read()
+            file_content = io.BytesIO(cont)
             filename = f"{uuid.uuid4()}.jpg"
             await run_in_threadpool(
                 process_and_save_image, file_content, filename, is_thumb=False
             )
             
-            thumb_content = io.BytesIO(await file.read())
+            thumb_content = io.BytesIO(cont)
             await run_in_threadpool(
                 process_and_save_image, thumb_content, filename, is_thumb=True
             )

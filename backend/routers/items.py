@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from schemas import ItemRead, ItemCreate
 from auth import UserDep
 from db import SessionDep
-from models import Item, ItemImage
+from models import Item, ItemImage, TradeType
 from routers.media import UPLOAD_DIR, process_and_save_image
 
 router = APIRouter(prefix="/items", tags=["Items"])
@@ -92,7 +92,7 @@ async def get_items(db: SessionDep):
 
 
 @router.get("/available", response_model=list[ItemRead])
-async def get_available_items(db: SessionDep, trade_type: str = None):
+async def get_available_items(db: SessionDep, trade_type: TradeType = None):
     now = datetime.utcnow()
     
     query = select(Item).options(selectinload(Item.images)).where(
@@ -103,7 +103,7 @@ async def get_available_items(db: SessionDep, trade_type: str = None):
         )
     )
     
-    if trade_type and trade_type in ["rent", "exchange"]:
+    if trade_type:
         query = query.where(Item.trade_type == trade_type)
     
     query = query.order_by(Item.id.desc())
