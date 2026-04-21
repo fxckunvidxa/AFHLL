@@ -20,10 +20,10 @@ UPLOAD_DIR = Path("static/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def process_and_save_image(file_bytes, filename: str, is_thumb: bool = False):
+def process_and_save_image(file_obj, filename: str, is_thumb: bool = False):
     target_path = UPLOAD_DIR / (f"thumb_{filename}" if is_thumb else filename)
 
-    with Image.open(file_bytes) as img:
+    with Image.open(file_obj) as img:
         img = ImageOps.exif_transpose(img)
         if img.mode in ("RGBA", "P"):
             img = img.convert("RGB")
@@ -60,6 +60,11 @@ async def upload_images(user: UserDep, db: SessionDep, files: list[UploadFile]):
             filename = f"{uuid.uuid4()}.jpg"
             await run_in_threadpool(
                 process_and_save_image, file_content, filename, is_thumb=False
+            )
+            
+            thumb_content = io.BytesIO(await file.read())
+            await run_in_threadpool(
+                process_and_save_image, thumb_content, filename, is_thumb=True
             )
 
             new_img = ItemImage(filename=filename, owner_id=user.id)

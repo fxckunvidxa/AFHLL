@@ -21,7 +21,10 @@ class User(Base):
     hashed_passwd: Mapped[str]
     totp_secret: Mapped[str | None]
 
-    items: Mapped[list["Item"]] = relationship(back_populates="owner")
+    items: Mapped[list["Item"]] = relationship(
+        back_populates="owner", 
+        foreign_keys="[Item.owner_id]"
+    )
 
 
 class Item(Base):
@@ -36,13 +39,20 @@ class Item(Base):
     reserved_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     reserved_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     
-    reserved_by: Mapped["User"] = relationship(foreign_keys=[reserved_by_id])
+    reserved_by: Mapped["User"] = relationship(
+        foreign_keys=[reserved_by_id]
+    )
 
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
 
-    owner: Mapped[User] = relationship(back_populates="items")
+    owner: Mapped["User"] = relationship(
+        back_populates="items",
+        foreign_keys=[owner_id]
+    )
+    
     images: Mapped[list["ItemImage"]] = relationship(
-        back_populates="item", cascade="all, delete-orphan"
+        back_populates="item", 
+        cascade="all, delete-orphan"
     )
 
 
@@ -56,12 +66,12 @@ class ItemImage(Base):
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     item_id: Mapped[int | None] = mapped_column(ForeignKey("items.id"))
 
-    item: Mapped[Item] = relationship(back_populates="images")
+    item: Mapped["Item"] = relationship(back_populates="images")
 
     @property
     def url(self) -> str:
-        return f"http://localhost:8000/static/uploads/{self.filename}"
+        return f"/static/uploads/{self.filename}"
 
     @property
     def thumb_url(self) -> str:
-        return f"http://localhost:8000/static/uploads/thumb_{self.filename}"
+        return f"/static/uploads/thumb_{self.filename}"
