@@ -4,6 +4,7 @@ const API_BASE = 'http://localhost:8000'
 
 const api = axios.create({
   baseURL: API_BASE,
+  withCredentials: true,
 })
 
 api.interceptors.request.use((config) => {
@@ -14,15 +15,38 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('access_token')
+      window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  }
+)
+
 export const auth = {
   register: (data) => api.post('/register', data),
-  login: (data) => api.post('/login', data),
+  login: (formData) => api.post('/login', formData, {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+  }),
   getMe: () => api.get('/users/me'),
 }
 
 export const items = {
-  getAll: (tradeType) => api.get('/items/available', { params: { trade_type: tradeType } }),
-  getMy: () => api.get('/items/user/my'),
+  getAll: async (tradeType) => {
+    const response = await api.get('/items/available', { 
+      params: { trade_type: tradeType } 
+    })
+    console.log('API response from /items/available:', response.data)
+    // Убеждаемся, что возвращаем массив
+    return Array.isArray(response.data) ? response.data : []
+  },
+  getMy: async () => {
+    const response = await api.get('/items/user/my')
+    return Array.isArray(response.data) ? response.data : []
+  },
   getOne: (id) => api.get(`/items/${id}`),
   create: (data) => api.post('/items/', data),
   reserve: (id) => api.post(`/items/${id}/reserve`),
@@ -32,12 +56,14 @@ export const items = {
 }
 
 export const media = {
-  upload: (files) => {
+  upload: async (files) => {
     const formData = new FormData()
     files.forEach(file => formData.append('files', file))
-    return api.post('/media/upload', formData, {
+    const response = await api.post('/media/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
+    console.log('Upload response:', response.data)
+    return Array.isArray(response.data) ? response.data : []
   },
 }
 

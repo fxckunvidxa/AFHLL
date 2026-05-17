@@ -1,24 +1,51 @@
 import React, { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { items } from '../api'
 import ItemCard from '../components/ItemCard'
 
 export default function Home() {
   const [filter, setFilter] = useState('all')
-  const queryClient = useQueryClient()
 
-  const { data: itemsList = [], isLoading, refetch } = useQuery({
+  const { data: itemsList = [], isLoading, error, refetch } = useQuery({
     queryKey: ['items', filter],
-    queryFn: () => items.getAll(filter === 'all' ? null : filter),
+    queryFn: async () => {
+      console.log('Fetching items with filter:', filter)
+      const result = await items.getAll(filter === 'all' ? null : filter)
+      console.log('Fetched items:', result)
+      return result
+    },
   })
 
   // Обновление в реальном времени каждые 5 секунд
   React.useEffect(() => {
     const interval = setInterval(() => {
+      console.log('Refetching items...')
       refetch()
     }, 5000)
     return () => clearInterval(interval)
   }, [refetch])
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-10">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    )
+  }
+
+  if (error) {
+    console.error('Query error:', error)
+    return (
+      <div className="text-center py-10 text-red-500">
+        Ошибка загрузки: {error.message}
+      </div>
+    )
+  }
+
+  // Убеждаемся, что itemsList всегда массив
+  const itemsArray = Array.isArray(itemsList) ? itemsList : []
+  console.log('Rendering items count:', itemsArray.length)
+  console.log('Items data:', itemsArray)
 
   return (
     <div>
@@ -57,17 +84,16 @@ export default function Home() {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="flex justify-center py-10">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-        </div>
-      ) : itemsList.length === 0 ? (
-        <div className="text-center py-10 text-gray-500">
-          Нет доступных объявлений
+      {itemsArray.length === 0 ? (
+        <div className="text-center py-10">
+          <div className="text-gray-500 mb-2">Нет доступных объявлений</div>
+          <div className="text-sm text-gray-400">
+            Попробуйте создать новое объявление или изменить фильтр
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {itemsList.map((item) => (
+          {itemsArray.map((item) => (
             <ItemCard key={item.id} item={item} onUpdate={refetch} />
           ))}
         </div>

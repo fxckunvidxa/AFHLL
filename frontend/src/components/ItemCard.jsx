@@ -62,14 +62,25 @@ export default function ItemCard({ item, onUpdate }) {
     return item.trade_type === 'rent' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'
   }
 
+  // Безопасное получение URL изображения
+  const getImageUrl = (image) => {
+    if (!image) return null
+    if (image.url) return `http://localhost:8000${image.url}`
+    if (image.thumb_url) return `http://localhost:8000${image.thumb_url}`
+    return null
+  }
+
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition">
       <div className="relative h-48 bg-gray-200">
         {mainImage ? (
           <img
-            src={`http://localhost:8000${mainImage.url}`}
+            src={getImageUrl(mainImage)}
             alt={item.title}
             className="w-full h-full object-cover"
+            onError={(e) => {
+              e.target.src = 'https://via.placeholder.com/300x200?text=No+Image'
+            }}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400">
