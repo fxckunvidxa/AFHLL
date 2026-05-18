@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { items } from '../api'
 import { useQueryClient } from '@tanstack/react-query'
 
-export default function ItemCard({ item, onUpdate }) {
+export default function ItemCard({ item, onUpdate, onClick }) {
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const queryClient = useQueryClient()
@@ -13,7 +13,8 @@ export default function ItemCard({ item, onUpdate }) {
   const isMyItem = item.owner_id === user?.id
   const isReservedByMe = isReserved && item.reserved_by_id === user?.id
 
-  const handleReserve = async () => {
+  const handleReserve = async (e) => {
+    e.stopPropagation() // Останавливаем всплытие, чтобы не открывать модалку
     setLoading(true)
     try {
       await items.reserve(item.id)
@@ -26,7 +27,8 @@ export default function ItemCard({ item, onUpdate }) {
     }
   }
 
-  const handleCancel = async () => {
+  const handleCancel = async (e) => {
+    e.stopPropagation()
     setLoading(true)
     try {
       await items.cancelReserve(item.id)
@@ -39,7 +41,8 @@ export default function ItemCard({ item, onUpdate }) {
     }
   }
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (e) => {
+    e.stopPropagation()
     if (window.confirm('Подтвердить обмен?')) {
       setLoading(true)
       try {
@@ -62,7 +65,6 @@ export default function ItemCard({ item, onUpdate }) {
     return item.trade_type === 'rent' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'
   }
 
-  // Безопасное получение URL изображения
   const getImageUrl = (image) => {
     if (!image) return null
     if (image.url) return `http://localhost:8000${image.url}`
@@ -71,7 +73,10 @@ export default function ItemCard({ item, onUpdate }) {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition">
+    <div 
+      className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition cursor-pointer"
+      onClick={() => onClick?.(item.id)}
+    >
       <div className="relative h-48 bg-gray-200">
         {mainImage ? (
           <img
@@ -111,7 +116,7 @@ export default function ItemCard({ item, onUpdate }) {
           </div>
         )}
 
-        <div className="flex gap-2">
+        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
           {!isMyItem && !isReserved && (
             <button
               onClick={handleReserve}

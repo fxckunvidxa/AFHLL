@@ -2,9 +2,11 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { items } from '../api'
 import ItemCard from '../components/ItemCard'
+import ItemDetailsModal from '../components/ItemDetailsModal'
 
 export default function Home() {
   const [filter, setFilter] = useState('all')
+  const [selectedItemId, setSelectedItemId] = useState(null)
 
   const { data: itemsList = [], isLoading, error, refetch } = useQuery({
     queryKey: ['items', filter],
@@ -25,6 +27,15 @@ export default function Home() {
     return () => clearInterval(interval)
   }, [refetch])
 
+  const handleItemClick = (itemId) => {
+    setSelectedItemId(itemId)
+  }
+
+  const handleCloseModal = () => {
+    setSelectedItemId(null)
+    refetch() // Обновляем список после закрытия модалки
+  }
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-10">
@@ -42,10 +53,7 @@ export default function Home() {
     )
   }
 
-  // Убеждаемся, что itemsList всегда массив
   const itemsArray = Array.isArray(itemsList) ? itemsList : []
-  console.log('Rendering items count:', itemsArray.length)
-  console.log('Items data:', itemsArray)
 
   return (
     <div>
@@ -94,10 +102,23 @@ export default function Home() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {itemsArray.map((item) => (
-            <ItemCard key={item.id} item={item} onUpdate={refetch} />
+            <ItemCard 
+              key={item.id} 
+              item={item} 
+              onUpdate={refetch}
+              onClick={() => handleItemClick(item.id)}
+            />
           ))}
         </div>
       )}
+
+      {/* Модальное окно с деталями объявления */}
+      <ItemDetailsModal
+        isOpen={!!selectedItemId}
+        onClose={handleCloseModal}
+        itemId={selectedItemId}
+        onUpdate={refetch}
+      />
     </div>
   )
 }
