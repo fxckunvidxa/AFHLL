@@ -1,13 +1,17 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { items, media } from '../api'
+import { items, media } from '../services/api'
+import { useGalleryContext } from './Gallery'
+import Modal from '../components/Modal'
 
-export default function CreateItem() {
+export default function ItemCreate() {
   const navigate = useNavigate()
+  const { onUpdate } = useGalleryContext()
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     trade_type: 'exchange',
+    contacts: '',
   })
   const [uploadedImages, setUploadedImages] = useState([])
   const [mainImageId, setMainImageId] = useState(null)
@@ -18,11 +22,10 @@ export default function CreateItem() {
     const files = Array.from(e.target.files)
     if (files.length === 0) return
     
-    setUploading(true)
+    setUploading(true)  
     
     try {
       const imageIds = await media.upload(files)
-      console.log('Uploaded image IDs:', imageIds)
       
       const newImages = files.map((file, idx) => ({
         id: imageIds[idx],
@@ -30,16 +33,10 @@ export default function CreateItem() {
         fileName: file.name
       }))
       
-      setUploadedImages(prev => {
-        const updated = [...prev, ...newImages]
-        console.log('Updated images:', updated)
-        return updated
-      })
+      setUploadedImages(prev => [...prev, ...newImages])
       
-      // Устанавливаем главное изображение, если его нет
       if (!mainImageId && imageIds.length > 0) {
         setMainImageId(imageIds[0])
-        console.log('Auto-set main image to:', imageIds[0])
       }
       
       e.target.value = ''
@@ -54,8 +51,6 @@ export default function CreateItem() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
-    console.log('Form submitted. Images:', uploadedImages, 'Main ID:', mainImageId)
     
     if (uploadedImages.length === 0) {
       alert('Добавьте хотя бы одно изображение')
@@ -76,13 +71,13 @@ export default function CreateItem() {
         title: formData.title,
         description: formData.description,
         trade_type: formData.trade_type,
+        contacts: formData.contacts,
         image_ids: imageIds,
         main_image_id: mainImageId,
       }
       
-      console.log('Sending item data:', itemData)
-      
       await items.create(itemData)
+      onUpdate()
       navigate('/')
     } catch (err) {
       console.error('Create item error:', err)
@@ -96,32 +91,20 @@ export default function CreateItem() {
     setUploadedImages(prev => {
       const updated = prev.filter(img => img.id !== imageId)
       
-      // Если удалили главное изображение
       if (mainImageId === imageId) {
         const newMainId = updated[0]?.id || null
         setMainImageId(newMainId)
-        console.log('Removed main image, new main:', newMainId)
       }
       
       return updated
     })
   }
 
-  // Проверяем, можно ли отправить форму
-  const isFormValid = () => {
-    const hasTitle = formData.title.trim().length > 0
-    const hasImages = uploadedImages.length > 0
-    const hasMainImage = mainImageId !== null
-    const notLoading = !loading && !uploading
-    
-    console.log('Form valid check:', { hasTitle, hasImages, hasMainImage, notLoading })
-    
-    return hasTitle && hasImages && hasMainImage && notLoading
-  }
+  const onClose = () => navigate('/')
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="bg-white rounded-lg shadow-md p-6">
+    <Modal onClose={onClose}>
+      <div className="max-w-2xl mx-auto p-6">
         <h2 className="text-2xl font-bold mb-6">Создать объявление</h2>
         
         <form onSubmit={handleSubmit}>
@@ -163,6 +146,22 @@ export default function CreateItem() {
               <option value="rent">Аренда</option>
             </select>
           </div>
+
+          <div className="mb-4">
+            <label className="block text-gray-700 text-sm font-bold mb-2">
+              Контакты для связи (Telegram, телефон)
+            </label>
+            <input
+              type="text"
+              value={formData.contacts}
+              onChange={(e) => setFormData({...formData, contacts: e.target.value})}
+              placeholder="@telegram или +7..."
+              className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Они покажутся только тому, кто забронирует вещь
+            </p>
+          </div>
           
           <div className="mb-4">
             <label className="block text-gray-700 text-sm font-bold mb-2">
@@ -198,10 +197,7 @@ export default function CreateItem() {
                       />
                       <button
                         type="button"
-                        onClick={() => {
-                          setMainImageId(img.id)
-                          console.log('Manual set main image to:', img.id)
-                        }}
+                        onClick={() => setMainImageId(img.id)}
                         className={`absolute top-1 right-1 p-1 rounded-full text-lg transition ${
                           mainImageId === img.id
                             ? 'bg-yellow-500 text-white'
@@ -226,24 +222,24 @@ export default function CreateItem() {
             )}
           </div>
           
-          <button
-            type="submit"
-            disabled={!isFormValid()}
-            className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Создание...' : 'Создать объявление'}
-          </button>
-          
-          {/* Отладочная информация (можно убрать после отладки) */}
-          <div className="mt-4 text-xs text-gray-500">
-            <div>Статус формы:</div>
-            <div>- Название: {formData.title ? '✓' : '✗'}</div>
-            <div>- Изображения: {uploadedImages.length > 0 ? `✓ (${uploadedImages.length})` : '✗'}</div>
-            <div>- Главное фото: {mainImageId ? '✓' : '✗'}</div>
-            <div>- Загрузка: {uploading ? 'да' : 'нет'}</div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 bg-gray-300 text-gray-700 py-2 rounded hover:bg-gray-400 transition"
+            >
+              Отмена
+            </button>
+            <button
+              type="submit"
+              disabled={loading || uploading || uploadedImages.length === 0 || !mainImageId}
+              className="flex-1 bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition disabled:opacity-50"
+            >
+              {loading ? 'Создание...' : 'Создать'}
+            </button>
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   )
 }

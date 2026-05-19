@@ -1,11 +1,10 @@
-import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { items } from '../api'
+import { items } from '../services/api'
 import ItemCard from '../components/ItemCard'
-import ItemDetailsModal from '../components/ItemDetailsModal'
+import { useNavigate } from 'react-router-dom'
 
 export default function MyItems() {
-  const [selectedItemId, setSelectedItemId] = useState(null)
+  const navigate = useNavigate()
   
   const { data: itemsList = [], isLoading, refetch } = useQuery({
     queryKey: ['my-items'],
@@ -13,12 +12,7 @@ export default function MyItems() {
   })
 
   const handleItemClick = (itemId) => {
-    setSelectedItemId(itemId)
-  }
-
-  const handleCloseModal = () => {
-    setSelectedItemId(null)
-    refetch()
+    navigate(`/item/${itemId}`)
   }
 
   if (isLoading) {
@@ -49,13 +43,6 @@ export default function MyItems() {
           ))}
         </div>
       )}
-
-      <ItemDetailsModal
-        isOpen={!!selectedItemId}
-        onClose={handleCloseModal}
-        itemId={selectedItemId}
-        onUpdate={refetch}
-      />
     </div>
   )
 }

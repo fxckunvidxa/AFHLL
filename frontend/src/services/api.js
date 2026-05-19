@@ -39,8 +39,6 @@ export const items = {
     const response = await api.get('/items/available', { 
       params: { trade_type: tradeType } 
     })
-    console.log('API response from /items/available:', response.data)
-    // Убеждаемся, что возвращаем массив
     return Array.isArray(response.data) ? response.data : []
   },
   getMy: async () => {
@@ -52,7 +50,10 @@ export const items = {
   reserve: (id) => api.post(`/items/${id}/reserve`),
   cancelReserve: (id) => api.post(`/items/${id}/cancel-reserve`),
   confirmExchange: (id) => api.post(`/items/${id}/confirm-exchange`),
+  getContacts: (id) => api.get(`/items/${id}/contacts`),
   setMainImage: (itemId, imageId) => api.patch(`/items/${itemId}/set-main-image`, null, { params: { image_id: imageId } }),
+  update: (id, data) => api.patch(`/items/${id}`, data),
+  delete: (id) => api.delete(`/items/${id}`),
 }
 
 export const media = {
@@ -62,7 +63,6 @@ export const media = {
     const response = await api.post('/media/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
-    console.log('Upload response:', response.data)
     return Array.isArray(response.data) ? response.data : []
   },
 }
