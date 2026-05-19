@@ -137,48 +137,47 @@ async def reserve_item(item_id: int, user: UserDep, db: SessionDep):
     if item.owner_id == user.id:
         raise HTTPException(status_code=400, detail="Нельзя забронировать свою вещь")
     
-    now = datetime.utcnow()
-    if item.reserved_until and item.reserved_until > now:
-        raise HTTPException(status_code=400, detail="Уже забронировано кем-то другим")
-
+    if item.reserved_by_id is not None:
+        raise HTTPException(status_code=400, detail="Вещь уже забронирована")
+    
+    # Бронируем без таймера
     item.reserved_by_id = user.id
-    item.reserved_until = now + timedelta(minutes=20)
+    item.reserved_until = None  # не используем таймер
     
     await db.commit()
-    return {"status": "reserved", "until": item.reserved_until}
+    
+    # Возвращаем контакты владельца
+    return {
+        "status": "reserved", 
+        "owner_contacts": item.contacts,
+        "message": "Вещь забронирована. Свяжитесь с владельцем по контактам выше"
+    }
 
-
-@router.post("/{item_id}/cancel-reserve")
-async def cancel_reserve(item_id: int, user: UserDep, db: SessionDep):
+@router.post("/{item_id}/release")
+async def release_item(item_id: int, user: UserDep, db: SessionDep):
+    """Владелец освобождает вещь (если сделка не состоялась)"""
     item = await db.get(Item, item_id)
     if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
-    
-    if item.reserved_by_id != user.id:
-        raise HTTPException(status_code=403, detail="Not your reservation")
-    
-    item.reserved_by_id = None
-    item.reserved_until = None
-    
-    await db.commit()
-    return {"status": "cancelled"}
-
-
-@router.post("/{item_id}/confirm-exchange")
-async def confirm_exchange(item_id: int, user: UserDep, db: SessionDep):
-    item = await db.get(Item, item_id)
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
+        raise HTTPException(status_code=404)
     
     if item.owner_id != user.id:
-        raise HTTPException(status_code=403, detail="Not your item")
+        raise HTTPException(status_code=403, detail="Не ваш товар")
     
-    if item.trade_type != "exchange":
-        raise HTTPException(status_code=400, detail="Only for exchange items")
+    item.reserved_by_id = None
+    await db.commit()
+    return {"status": "released"}
+
+@router.post("/{item_id}/mark-as-gone")
+async def mark_as_gone(item_id: int, user: UserDep, db: SessionDep):
+    """Владелец отмечает, что вещь отдана/сдана"""
+    item = await db.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404)
+    
+    if item.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="Не ваш товар")
     
     item.is_available = False
     item.reserved_by_id = None
-    item.reserved_until = None
-    
     await db.commit()
-    return {"status": "exchanged"}
+    return {"status": "marked_as_gone"}
