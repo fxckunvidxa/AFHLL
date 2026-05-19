@@ -6,6 +6,7 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import ItemDetails from './pages/ItemDetails'
 import ItemCreate from './pages/ItemCreate'
+import Profile from './pages/Profile'
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
               <Route path="item/:id" element={<ItemDetails />} />
               <Route path="create" element={<ItemCreate />} />
             </Route>
+            <Route path="/profile" element={<Profile />} />
           </Route>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />

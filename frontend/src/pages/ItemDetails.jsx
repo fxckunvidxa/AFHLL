@@ -56,7 +56,8 @@ export default function ItemDetails() {
       setItem(response.data)
       setEditDescription(response.data.description || '')
       setEditContacts(response.data.contacts || '')
-      setCurrentImageIndex(0)
+      const mainIndex = response.data.images?.findIndex(img => img.is_main) || 0
+      setCurrentImageIndex(mainIndex >= 0 ? mainIndex : 0)
       setShowContacts(false)
       setContacts(null)
       setIsEditing(false)
@@ -158,6 +159,19 @@ export default function ItemDetails() {
     }
   }
 
+  const handleSetMainImage = async (imageId) => {
+    setActionLoading(true)
+    try {
+      await items.setMainImage(item.id, imageId)
+      onUpdate()
+      await fetchItemDetails()
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Ошибка при смене главного фото')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const onClose = () => navigate('/')
 
   if (loading) {
@@ -212,12 +226,34 @@ export default function ItemDetails() {
         <div className="md:w-2/3 p-6 bg-gray-50">
           <div className="relative bg-white rounded-lg overflow-hidden" style={{ minHeight: '400px' }}>
             {item.images?.[currentImageIndex] ? (
-              <img
-                src={getImageUrl(item.images[currentImageIndex])}
-                alt={item.title}
-                className="w-full h-full object-contain"
-                style={{ maxHeight: '500px' }}
-              />
+              <>
+                <img
+                  src={getImageUrl(item.images[currentImageIndex])}
+                  alt={item.title}
+                  className="w-full h-full object-contain"
+                  style={{ maxHeight: '500px' }}
+                />
+                
+                {/* Кнопка "Сделать главным" на основном фото */}
+                {isMyItem && !item.images[currentImageIndex].is_main && (
+                  <button
+                    onClick={() => handleSetMainImage(item.images[currentImageIndex].id)}
+                    disabled={actionLoading}
+                    className="absolute bottom-3 left-3 bg-black bg-opacity-60 hover:bg-opacity-80 text-white text-sm px-3 py-1.5 rounded-md backdrop-blur-sm transition flex items-center gap-1 disabled:opacity-50"
+                  >
+                    <span className="text-yellow-400">★</span>
+                    <span>Сделать главным</span>
+                  </button>
+                )}
+                
+                {/* Индикатор главного фото */}
+                {item.images[currentImageIndex].is_main && isMyItem && (
+                  <div className="absolute bottom-3 left-3 bg-green-500 bg-opacity-90 text-white text-sm px-3 py-1.5 rounded-md flex items-center gap-1">
+                    <span>✓</span>
+                    <span>Главное фото</span>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="w-full h-96 flex items-center justify-center text-gray-400">
                 Нет фото
@@ -245,13 +281,13 @@ export default function ItemDetails() {
           </div>
           
           {/* Миниатюры */}
-          {item.images && item.images.length > 1 && (
+          {item.images && item.images.length > 0 && (
             <div className="flex gap-2 mt-4 overflow-x-auto">
               {item.images.map((img, idx) => (
                 <button
                   key={img.id}
                   onClick={() => setCurrentImageIndex(idx)}
-                  className={`flex-shrink-0 w-16 h-16 rounded border-2 ${
+                  className={`flex-shrink-0 w-16 h-16 rounded border-2 overflow-hidden ${
                     idx === currentImageIndex ? 'border-blue-500' : 'border-gray-300'
                   }`}
                 >
@@ -360,7 +396,7 @@ export default function ItemDetails() {
           )}
 
           {/* Статус бронирования */}
-          {reserved && (
+          {reserved && !isMyItem && (
             <div className="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4">
               <p className="text-sm text-yellow-800">
                 {reservedByMe 

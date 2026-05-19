@@ -1,22 +1,36 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../services/auth'
+import TwoFAModal from '../components/TwoFAModal'
 
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const { login } = useAuth()
+  const { login, verify2FALogin, requires2FA } = useAuth()
   const navigate = useNavigate()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    try {
-      await login(email, password)
+    setError('')
+    const result = await login(email, password)
+    
+    if (result.success) {
       navigate('/')
-    } catch (err) {
-      setError('Неверный email или пароль')
+    } else if (result.requires2FA) {
+      // Модалка откроется автоматически, ничего не делаем
+      console.log('2FA required, waiting for code')
+    } else {
+      setError(result.message || 'Неверный email или пароль')
     }
+  }
+
+  const handle2FAVerify = async (code) => {
+    const result = await verify2FALogin(code)
+    if (result.success) {
+      navigate('/')
+    }
+    return result
   }
 
   return (
@@ -69,6 +83,12 @@ export default function Login() {
           Нет аккаунта? <Link to="/register" className="text-blue-500 hover:underline">Зарегистрироваться</Link>
         </p>
       </div>
+      
+      <TwoFAModal
+        isOpen={requires2FA}
+        onClose={() => {}}  // Не закрываем, только через успешный вход
+        onVerify={handle2FAVerify}
+      />
     </div>
   )
 }

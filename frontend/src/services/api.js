@@ -18,6 +18,11 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Не обрабатываем 403 с 2FA_REQUIRED, пусть идёт дальше
+    if (error.response?.status === 403 && error.response?.data?.detail === '2FA_REQUIRED') {
+      return Promise.reject(error)
+    }
+
     if (error.response?.status === 401) {
       localStorage.removeItem('access_token')
       window.location.href = '/login'
@@ -31,7 +36,16 @@ export const auth = {
   login: (formData) => api.post('/login', formData, {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
   }),
+  loginWith2FA: (email, password, code) => api.post('/login-2fa', null, {
+    params: { email, password, code }
+  }),
   getMe: () => api.get('/users/me'),
+  
+  // 2FA методы
+  get2FAStatus: () => api.get('/2fa/status'),
+  setup2FA: () => api.post('/2fa/setup'),
+  verify2FA: (code) => api.post('/2fa/verify', { code }),
+  disable2FA: () => api.post('/2fa/disable'),
 }
 
 export const items = {

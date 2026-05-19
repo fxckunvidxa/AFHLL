@@ -15,15 +15,14 @@ export default function Navbar() {
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           <Link to="/" className="text-xl font-bold text-blue-600">
-            Обменник в общежитии
+            Общага.Обмен
           </Link>
           
           {user && (
             <div className="flex gap-4 items-center">
-              <Link to="/" className="text-gray-700 hover:text-blue-600">Главная</Link>
               <Link to="/create" className="text-gray-700 hover:text-blue-600">Создать</Link>
               <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-600">{user.email}</span>
+                <Link to="/profile" className="text-sm text-gray-600">{user.email}</Link>
                 <button
                   onClick={handleLogout}
                   className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"

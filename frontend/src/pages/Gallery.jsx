@@ -6,7 +6,6 @@ import { items } from '../services/api'
 import ItemCard from '../components/ItemCard'
 import { useAuth } from '../services/auth'
 
-// Хук для доступа к контексту галереи
 export function useGalleryContext() {
   return useOutletContext()
 }
@@ -15,7 +14,6 @@ export default function Gallery() {
   const [filter, setFilter] = useState('all')
   const { user } = useAuth()
   
-  // Определяем, какой запрос делать в зависимости от фильтра
   const queryFn = async () => {
     if (filter === 'my') {
       const result = await items.getMy()
@@ -31,12 +29,10 @@ export default function Gallery() {
     queryFn,
   })
 
-  // Обновление при изменении данных (после бронирования и т.д.)
   useEffect(() => {
     refetch()
   }, [filter, refetch])
 
-  // Передаём в модалки через контекст
   const contextValue = {
     items: itemsList,
     onUpdate: refetch
@@ -48,11 +44,11 @@ export default function Gallery() {
     <>
       <div>
         {/* Фильтры */}
-        <div className="mb-6">
-          <div className="flex gap-2 border-b flex-wrap">
+        <div className="mb-5">
+          <div className="flex gap-1 border-b">
             <button
               onClick={() => setFilter('all')}
-              className={`px-4 py-2 font-medium ${
+              className={`px-3 py-1.5 text-sm font-medium ${
                 filter === 'all'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-500 hover:text-gray-700'
@@ -62,7 +58,7 @@ export default function Gallery() {
             </button>
             <button
               onClick={() => setFilter('exchange')}
-              className={`px-4 py-2 font-medium ${
+              className={`px-3 py-1.5 text-sm font-medium ${
                 filter === 'exchange'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-500 hover:text-gray-700'
@@ -72,7 +68,7 @@ export default function Gallery() {
             </button>
             <button
               onClick={() => setFilter('rent')}
-              className={`px-4 py-2 font-medium ${
+              className={`px-3 py-1.5 text-sm font-medium ${
                 filter === 'rent'
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-500 hover:text-gray-700'
@@ -81,11 +77,10 @@ export default function Gallery() {
               Аренда
             </button>
             
-            {/* Вкладка "Мои" — показываем только если пользователь авторизован */}
             {user && (
               <button
                 onClick={() => setFilter('my')}
-                className={`px-4 py-2 font-medium ${
+                className={`px-3 py-1.5 text-sm font-medium ${
                   filter === 'my'
                     ? 'text-blue-600 border-b-2 border-blue-600'
                     : 'text-gray-500 hover:text-gray-700'
@@ -97,18 +92,18 @@ export default function Gallery() {
           </div>
         </div>
 
-        {/* Сетка карточек */}
+        {/* Сетка карточек — уменьшенные карточки */}
         {isLoading ? (
           <div className="flex justify-center py-10">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
           </div>
         ) : error ? (
-          <div className="text-center py-10 text-red-500">
+          <div className="text-center py-10 text-red-500 text-sm">
             Ошибка загрузки: {error.message}
           </div>
         ) : itemsList.length === 0 ? (
           <div className="text-center py-10">
-            <div className="text-gray-500 mb-2">
+            <div className="text-gray-500 text-sm mb-2">
               {isMyItemsTab 
                 ? 'У вас пока нет объявлений' 
                 : 'Нет доступных объявлений'
@@ -117,14 +112,14 @@ export default function Gallery() {
             {isMyItemsTab && (
               <button
                 onClick={() => setFilter('all')}
-                className="text-blue-500 hover:underline"
+                className="text-blue-500 hover:underline text-sm"
               >
                 Посмотреть все объявления
               </button>
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
             {itemsList.map((item) => (
               <ItemCard key={item.id} item={item} onUpdate={refetch} />
             ))}
@@ -132,7 +127,6 @@ export default function Gallery() {
         )}
       </div>
       
-      {/* Модалки будут рендериться здесь */}
       <Outlet context={contextValue} />
     </>
   )
