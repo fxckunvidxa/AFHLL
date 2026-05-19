@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr, ConfigDict
 from models import TradeType
+from datetime import datetime
 
 class ItemBase(BaseModel):
     title: str
@@ -18,6 +19,9 @@ class ItemRead(ItemBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
     owner_id: int
+    reserved_by_id: int | None = None
+    reserved_until: datetime | None = None
+    contacts: str | None = None  # только для владельца, но покажет через отдельный эндпоинт
     images: list["ImageRead"] = []
 
 
