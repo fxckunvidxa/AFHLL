@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
-from sqlalchemy import update, select, or_
+from sqlalchemy import update, select, or_, delete
 from sqlalchemy.orm import selectinload
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from schemas import ItemRead, ItemCreate
 from auth import UserDep
@@ -11,6 +11,9 @@ from models import Item, ItemImage, TradeType
 from routers.media import UPLOAD_DIR, process_and_save_image
 
 router = APIRouter(prefix="/items", tags=["Items"])
+
+# 30 минут на бронирование
+RESERVE_MINUTES = 30
 
 
 @router.post("/", response_model=ItemRead)
@@ -35,11 +38,13 @@ async def create_item(data: ItemCreate, user: UserDep, db: SessionDep):
                 img.is_main = True
                 full_path = UPLOAD_DIR / img.filename
                 with open(full_path, "rb") as f:
-                    process_and_save_image(f, img.filename, is_thumb=True)
+                    await run_in_threadpool(
+                        process_and_save_image, f, img.filename, is_thumb=True
+                    )
 
     await db.commit()
     await db.refresh(new_item)
-    
+
     # Загружаем изображения
     result = await db.execute(
         select(Item).options(selectinload(Item.images)).where(Item.id == new_item.id)
@@ -93,19 +98,19 @@ async def get_items(db: SessionDep):
 
 @router.get("/available", response_model=list[ItemRead])
 async def get_available_items(db: SessionDep, trade_type: TradeType = None):
-    now = datetime.utcnow()
-    
-    query = select(Item).options(selectinload(Item.images)).where(
-        Item.is_available == True,
-        or_(
-            Item.reserved_until == None,
-            Item.reserved_until < now
+    """Доступные вещи (не забронированные и с истекшей бронью)"""
+
+    query = (
+        select(Item)
+        .options(selectinload(Item.images))
+        .where(
+            Item.is_available == True,
         )
     )
-    
+
     if trade_type:
         query = query.where(Item.trade_type == trade_type)
-    
+
     query = query.order_by(Item.id.desc())
     res = await db.execute(query)
     return res.scalars().all()
@@ -113,7 +118,12 @@ async def get_available_items(db: SessionDep, trade_type: TradeType = None):
 
 @router.get("/user/my", response_model=list[ItemRead])
 async def get_my_items(user: UserDep, db: SessionDep):
-    query = select(Item).options(selectinload(Item.images)).where(Item.owner_id == user.id).order_by(Item.id.desc())
+    query = (
+        select(Item)
+        .options(selectinload(Item.images))
+        .where(Item.owner_id == user.id)
+        .order_by(Item.id.desc())
+    )
     res = await db.execute(query)
     return res.scalars().all()
 
@@ -130,54 +140,161 @@ async def get_item(item_id: int, db: SessionDep):
 
 @router.post("/{item_id}/reserve")
 async def reserve_item(item_id: int, user: UserDep, db: SessionDep):
+    """Забронировать вещь на 30 минут"""
     item = await db.get(Item, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Вещь не найдена")
-    
+
     if item.owner_id == user.id:
         raise HTTPException(status_code=400, detail="Нельзя забронировать свою вещь")
-    
-    if item.reserved_by_id is not None:
+
+    now = datetime.now(timezone.utc)
+
+    reserved_until = item.reserved_until
+    if reserved_until:
+        # Если из БД пришло naive - считаем что это UTC
+        reserved_until = reserved_until.replace(tzinfo=timezone.utc)
+
+    # Проверяем, не забронирована ли вещь (и не истекла ли бронь)
+    if item.reserved_by_id is not None and reserved_until and reserved_until > now:
         raise HTTPException(status_code=400, detail="Вещь уже забронирована")
-    
-    # Бронируем без таймера
+
+    # Бронируем на 30 минут
     item.reserved_by_id = user.id
-    item.reserved_until = None  # не используем таймер
-    
+    item.reserved_until = now + timedelta(minutes=RESERVE_MINUTES)
+
     await db.commit()
-    
-    # Возвращаем контакты владельца
+
     return {
-        "status": "reserved", 
-        "owner_contacts": item.contacts,
-        "message": "Вещь забронирована. Свяжитесь с владельцем по контактам выше"
+        "status": "reserved",
+        "reserved_until": item.reserved_until.isoformat(),
+        "message": f"Вещь забронирована до {item.reserved_until.strftime('%H:%M:%S')}",
     }
 
-@router.post("/{item_id}/release")
-async def release_item(item_id: int, user: UserDep, db: SessionDep):
-    """Владелец освобождает вещь (если сделка не состоялась)"""
-    item = await db.get(Item, item_id)
-    if not item:
-        raise HTTPException(status_code=404)
-    
-    if item.owner_id != user.id:
-        raise HTTPException(status_code=403, detail="Не ваш товар")
-    
-    item.reserved_by_id = None
-    await db.commit()
-    return {"status": "released"}
 
-@router.post("/{item_id}/mark-as-gone")
-async def mark_as_gone(item_id: int, user: UserDep, db: SessionDep):
-    """Владелец отмечает, что вещь отдана/сдана"""
+@router.get("/{item_id}/contacts")
+async def get_item_contacts(item_id: int, user: UserDep, db: SessionDep):
+    """
+    Получить контакты владельца.
+    Только если текущий пользователь забронировал эту вещь.
+    """
+    result = await db.execute(
+        select(Item)
+        .options(selectinload(Item.owner))  # Подгружаем owner
+        .where(Item.id == item_id)
+    )
+    item = result.scalar_one_or_none()
+
+    if not item:
+        raise HTTPException(status_code=404, detail="Вещь не найдена")
+
+    now = datetime.now(timezone.utc)
+
+    reserved_until = item.reserved_until
+    if reserved_until and reserved_until.tzinfo is None:
+        # Если из БД пришло naive - считаем что это UTC
+        reserved_until = reserved_until.replace(tzinfo=timezone.utc)
+
+    # Проверяем, что текущий пользователь забронировал вещь и бронь не истекла
+    if item.reserved_by_id != user.id:
+        raise HTTPException(status_code=403, detail="Вы не забронировали эту вещь")
+
+    if reserved_until and reserved_until < now:
+        raise HTTPException(status_code=400, detail="Время бронирования истекло")
+
+    return {
+        "contacts": item.contacts,
+        "owner_name": item.owner.name or item.owner.email,
+    }
+
+
+@router.post("/{item_id}/cancel-reserve")
+async def cancel_reserve(item_id: int, user: UserDep, db: SessionDep):
+    """Отменить бронирование (может тот, кто забронировал, или владелец)"""
     item = await db.get(Item, item_id)
     if not item:
-        raise HTTPException(status_code=404)
-    
+        raise HTTPException(status_code=404, detail="Вещь не найдена")
+
+    # Проверяем, что пользователь либо владелец, либо тот, кто забронировал
+    if item.owner_id != user.id and item.reserved_by_id != user.id:
+        raise HTTPException(status_code=403, detail="Нет прав")
+
+    item.reserved_by_id = None
+    item.reserved_until = None
+
+    await db.commit()
+    return {"status": "cancelled"}
+
+
+@router.post("/{item_id}/confirm-exchange")
+async def confirm_exchange(item_id: int, user: UserDep, db: SessionDep):
+    """
+    Подтвердить обмен/аренду (только владелец).
+    После подтверждения вещь становится недоступной.
+    """
+    item = await db.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Вещь не найдена")
+
     if item.owner_id != user.id:
-        raise HTTPException(status_code=403, detail="Не ваш товар")
-    
+        raise HTTPException(status_code=403, detail="Только владелец может подтвердить")
+
     item.is_available = False
     item.reserved_by_id = None
+    item.reserved_until = None
+
     await db.commit()
-    return {"status": "marked_as_gone"}
+    return {"status": "confirmed"}
+
+
+@router.patch("/{item_id}")
+async def update_item(
+    item_id: int,
+    data: dict,  # { "description": "...", "contacts": "..." }
+    user: UserDep,
+    db: SessionDep,
+):
+    """Обновить описание и/или контакты (только владелец)"""
+    item = await db.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Вещь не найдена")
+
+    if item.owner_id != user.id:
+        raise HTTPException(
+            status_code=403, detail="Только владелец может редактировать"
+        )
+
+    # Разрешаем обновлять только определённые поля
+    allowed_fields = {"description", "contacts"}
+    for field, value in data.items():
+        if field in allowed_fields and value is not None:
+            setattr(item, field, value)
+
+    await db.commit()
+    await db.refresh(item)
+
+    # Подгружаем изображения для ответа
+    result = await db.execute(
+        select(Item).options(selectinload(Item.images)).where(Item.id == item_id)
+    )
+    return result.scalar_one()
+
+
+@router.delete("/{item_id}")
+async def delete_item(item_id: int, user: UserDep, db: SessionDep):
+    """Удалить объявление (только владелец). Удаляет также связанные изображения из БД"""
+    item = await db.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Вещь не найдена")
+
+    if item.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="Только владелец может удалить")
+
+    # Удаляем записи об изображениях (файлы на диске останутся, но это не страшно для учебного проекта)
+    await db.execute(delete(ItemImage).where(ItemImage.item_id == item_id))
+
+    # Удаляем само объявление
+    await db.delete(item)
+    await db.commit()
+
+    return {"status": "deleted"}
