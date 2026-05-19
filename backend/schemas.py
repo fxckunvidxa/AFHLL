@@ -51,3 +51,22 @@ class ImageRead(BaseModel):
     url: str
     thumb_url: str | None = None
     is_main: bool
+
+
+class TOTPSetupResponse(BaseModel):
+    secret: str
+    qr_url: str  # data URL с QR-кодом
+
+
+class TOTPVerifyRequest(BaseModel):
+    code: str
+
+
+class TOTPStatusResponse(BaseModel):
+    enabled: bool
+
+
+class LoginWith2FARequest(BaseModel):
+    email: str
+    password: str
+    code: str | None = None

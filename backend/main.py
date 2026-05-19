@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from db import engine
-from routers import auth, users, media, items
+from routers import auth, users, media, items, twofa
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,6 +28,7 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(media.router)
 app.include_router(items.router)
+app.include_router(twofa.router)
 
 
 @app.get("/")
