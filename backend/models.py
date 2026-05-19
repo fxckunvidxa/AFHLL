@@ -35,6 +35,7 @@ class Item(Base):
     description: Mapped[str | None]
     trade_type: Mapped[TradeType] = mapped_column(SQLEnum(TradeType))
     is_available: Mapped[bool] = mapped_column(default=True)
+    contacts: Mapped[str | None] = mapped_column(nullable=True)
 
     reserved_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     reserved_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

@@ -11,6 +11,7 @@ class ItemBase(BaseModel):
 class ItemCreate(ItemBase):
     image_ids: list[int]
     main_image_id: int
+    contacts: str | None = None
 
 
 class ItemRead(ItemBase):
